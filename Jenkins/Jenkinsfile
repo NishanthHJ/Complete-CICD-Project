@@ -2,13 +2,12 @@ pipeline {
     agent any
 
     environment {
-        // Parametrizing the environment variables
         DOCKER_TAG = "${BUILD_NUMBER}"
-        IMAGE_NAME = "manojkrishnappa/fullstack"
+        IMAGE_NAME = "nishanthhj02/fullstack"
         AWS_REGION = "us-east-1"
-        SONAR_URL = 'http://3.84.96.251:9000/'  // SonarQube URL
-        GIT_REPO_NAME = "complete-cicd-project-microdegree"
-        GIT_USER_NAME = "ManojKRISHNAPPA"
+        SONAR_URL = "http://34.229.121.160:9000/"
+        GIT_REPO_NAME = "Complete-CICD-Project"
+        GIT_USER_NAME = "NishanthHJ"
     }
 
     tools {
@@ -17,28 +16,34 @@ pipeline {
     }
 
     stages {
+
         stage('Git Checkout') {
             steps {
-                git branch: 'main', url: 'https://github.com/ManojKRISHNAPPA/complete-cicd-project-microdegree.git'
+                git branch: 'main',
+                    url: 'https://github.com/NishanthHJ/Complete-CICD-Project.git'
             }
         }
 
         stage('Compile') {
             steps {
-                sh "mvn compile"
+                sh 'mvn compile'
             }
         }
 
         stage('Build') {
             steps {
-                sh "mvn clean install"
+                sh 'mvn clean install'
             }
         }
 
         stage('Static Code Analysis (SonarQube)') {
             steps {
-                withCredentials([string(credentialsId: 'sonarqube', variable: 'SONAR_AUTH_TOKEN')]) {
-                    sh "mvn sonar:sonar -Dsonar.login=$SONAR_AUTH_TOKEN -Dsonar.host.url=${SONAR_URL}"
+                withCredentials([string(credentialsId: 'sonar-token', variable: 'SONAR_AUTH_TOKEN')]) {
+                    sh """
+                    mvn sonar:sonar \
+                    -Dsonar.login=${SONAR_AUTH_TOKEN} \
+                    -Dsonar.host.url=${SONAR_URL}
+                    """
                 }
             }
         }
@@ -51,10 +56,16 @@ pipeline {
 
         stage('Login to Docker Hub') {
             steps {
-                script {
-                    withCredentials([usernamePassword(credentialsId: 'docker-hub-credentials', usernameVariable: 'DOCKER_USERNAME', passwordVariable: 'DOCKER_PASSWORD')]) {
-                        sh "echo $DOCKER_PASSWORD | docker login -u $DOCKER_USERNAME --password-stdin"
-                    }
+                withCredentials([
+                    usernamePassword(
+                        credentialsId: 'docker-hub-credentials',
+                        usernameVariable: 'DOCKER_USERNAME',
+                        passwordVariable: 'DOCKER_PASSWORD'
+                    )
+                ]) {
+                    sh '''
+                    echo "$DOCKER_PASSWORD" | docker login -u "$DOCKER_USERNAME" --password-stdin
+                    '''
                 }
             }
         }
@@ -68,18 +79,18 @@ pipeline {
         stage('Update Deployment File') {
             steps {
                 withCredentials([string(credentialsId: 'github', variable: 'GITHUB_TOKEN')]) {
-                    sh '''
-                        git config user.email "contactmanojmech@gmail.com"
+                    sh """
+                        git config user.email "hjnishanth6@gmail.com"
                         git config user.name "${GIT_USER_NAME}"
 
-                        # Update deployment.yml with the correct Docker image version (Build Number)
-                        sed -i "s|image: manojkrishnappa/fullstack:[^ ]*|image: manojkrishnappa/fullstack:${DOCKER_TAG}|g" argocd-manifest/deployment.yml
+                        sed -i 's|image: .*|image: ${IMAGE_NAME}:${DOCKER_TAG}|g' argocd-manifest/deployment.yml
 
-                        # Commit and push the updated deployment file
                         git add argocd-manifest/deployment.yml
-                        git commit -m "Update deployment image to version ${DOCKER_TAG}"
-                        git push https://${GITHUB_TOKEN}@github.com/${GIT_USER_NAME}/${GIT_REPO_NAME} HEAD:main
-                    '''
+
+                        git diff --staged --quiet || git commit -m "Update deployment image to version ${DOCKER_TAG}"
+
+                        git push https://${GITHUB_TOKEN}@github.com/${GIT_USER_NAME}/${GIT_REPO_NAME}.git HEAD:main
+                    """
                 }
             }
         }
@@ -94,27 +105,28 @@ pipeline {
                 def bannerColor = pipelineStatus.toUpperCase() == 'SUCCESS' ? 'green' : 'red'
 
                 def body = """
-                    <html>
-                    <body>
-                    <div style="border: 4px solid ${bannerColor}; padding: 10px;">
+                <html>
+                <body>
+                <div style="border:4px solid ${bannerColor};padding:10px;">
                     <h2>${jobName} - Build ${buildNumber}</h2>
-                    <div style="background-color: ${bannerColor}; padding: 10px;">
-                    <h3 style="color: white;">Pipeline Status: ${pipelineStatus.toUpperCase()}</h3>
+                    <div style="background-color:${bannerColor};padding:10px;">
+                        <h3 style="color:white;">
+                            Pipeline Status: ${pipelineStatus.toUpperCase()}
+                        </h3>
                     </div>
                     <p>Check the <a href="${BUILD_URL}">console output</a>.</p>
-                    </div>
-                    </body>
-                    </html>
+                </div>
+                </body>
+                </html>
                 """
 
-                emailext (
+                emailext(
                     subject: "${jobName} - Build ${buildNumber} - ${pipelineStatus.toUpperCase()}",
                     body: body,
-                    to: 'manojdevopstest@gmail.com',
-                    from: 'contactmanojmech@gmail.com',
-                    replyTo: 'contactmanojmech@gmail.com',
-                    mimeType: 'text/html',
-                    attachmentsPattern: '**/target/sonar-report.html'  // Path to the SonarQube report file
+                    to: 'hjnishanth6@gmail.com',
+                    from: 'hjnishanth6@gmail.com',
+                    replyTo: 'nishanthhj7@gmail.com',
+                    mimeType: 'text/html'
                 )
             }
         }
