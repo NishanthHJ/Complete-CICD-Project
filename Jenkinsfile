@@ -1,64 +1,69 @@
+
 pipeline {
     agent any
-
+ 
     environment {
-        IMAGE_NAME = "manojkrishnappa/fullstack:${GIT_COMMIT}"
-        AWS_REGION = "us-east-1"
-        CLUSTER_NAME = "microdegree-cluster"
-        NAMESPACE = "microdegree"
+        IMAGE_NAME   = "nishanth/fullstack:${GIT_COMMIT}"
+        AWS_REGION   = "us-east-1"
+        CLUSTER_NAME = "karunaadu"
+        NAMESPACE    = "karunaadu"
+        EKS_SERVER_URL = "https://BDEEE05DA910114810F68065B7708C9C.gr7.us-east-1.eks.amazonaws.com"
     }
-
+ 
     tools {
         jdk 'java-17'
         maven 'maven'
     }
-
+ 
     stages {
         stage('Git Checkout') {
             steps {
-                git branch: 'main', url: 'https://github.com/ManojKRISHNAPPA/complete-cicd-project-microdegree.git'
+                git branch: 'main', url: 'https://github.com/NishanthHJ/Complete-CICD-Project.git'
             }
         }
-
+ 
         stage('Compile') {
             steps {
                 sh "mvn compile"
             }
         }
-
+ 
         stage('Build') {
             steps {
                 sh "mvn package"
             }
         }
-
-        stage('sonarqube-stage'){
-            steps{
-                sh"""
-                mvn sonar:sonar \
-                -Dsonar.projectKey=devops \
-                -Dsonar.host.url=http://3.90.207.159:9000 \
-                -Dsonar.login=3bc7e2fd3433144539118dc582575ad22bcd2d0d
-                """
+ 
+        stage('sonarqube-stage') {
+            steps {
+                withCredentials([string(credentialsId: 'sonar-token', variable: 'SONAR_TOKEN')]) {
+                    sh """
+                    mvn sonar:sonar \
+                    -Dsonar.projectKey=devops \
+                    -Dsonar.host.url=http://34.229.121.160:9000/ \
+                    -Dsonar.login=${SONAR_TOKEN}
+                    """
+                }
             }
         }
+ 
         stage('Build & Tag Docker Image') {
             steps {
                 script {
                     sh 'printenv'
-                    sh "docker build -t manojkrishnappa/fullstack:${GIT_COMMIT} ."
+                    sh "docker build -t ${IMAGE_NAME} ."
                 }
             }
         }
-
+ 
         stage('Docker Image Scan') {
             steps {
                 script {
-                    sh "trivy image --format table -o trivy-image-report.html manojkrishnappa/fullstack:${GIT_COMMIT}"
+                    sh "trivy image --format table -o trivy-image-report.html ${IMAGE_NAME}"
                 }
             }
         }
-
+ 
         stage('Login to Docker Hub') {
             steps {
                 script {
@@ -68,15 +73,15 @@ pipeline {
                 }
             }
         }
-
+ 
         stage('Push Docker Image') {
             steps {
                 script {
-                    sh "docker push manojkrishnappa/fullstack:${GIT_COMMIT}"
+                    sh "docker push ${IMAGE_NAME}"
                 }
             }
         }
-        
+ 
         stage('Updating the Cluster') {
             steps {
                 script {
@@ -84,26 +89,26 @@ pipeline {
                 }
             }
         }
-        
+ 
         stage('Deploy To Kubernetes') {
             steps {
-                withKubeConfig(caCertificate: '', clusterName: 'microdegree-cluster', contextName: '', credentialsId: 'kube', namespace: 'microdegree', restrictKubeConfigAccess: false, serverUrl: 'https://AB2AD8E7E396070F02E8CEC4D6A0D7E9.gr7.us-east-1.eks.amazonaws.com') {
+                withKubeConfig(caCertificate: '', clusterName: 'karunaadu', contextName: '', credentialsId: 'kube', namespace: "${NAMESPACE}", restrictKubeConfigAccess: false, serverUrl: "${EKS_SERVER_URL}") {
                     sh "sed -i 's|replace|${IMAGE_NAME}|g' deployment.yml"
                     sh "kubectl apply -f deployment.yml -n ${NAMESPACE}"
                 }
             }
         }
-
+ 
         stage('Verify the Deployment') {
             steps {
-                withKubeConfig(caCertificate: '', clusterName: 'microdegree-cluster', contextName: '', credentialsId: 'kube', namespace: 'microdegree', restrictKubeConfigAccess: false, serverUrl: 'https://AB2AD8E7E396070F02E8CEC4D6A0D7E9.gr7.us-east-1.eks.amazonaws.com') {
-                    sh "kubectl get pods -n microdegree"
-                    sh "kubectl get svc -n microdegree"
+                withKubeConfig(caCertificate: '', clusterName: 'karunaadu', contextName: '', credentialsId: 'kube', namespace: "${NAMESPACE}", restrictKubeConfigAccess: false, serverUrl: "${EKS_SERVER_URL}") {
+                    sh "kubectl get pods -n ${NAMESPACE}"
+                    sh "kubectl get svc -n ${NAMESPACE}"
                 }
             }
         }
     }
-
+ 
     post {
         always {
             script {
@@ -111,7 +116,7 @@ pipeline {
                 def buildNumber = env.BUILD_NUMBER
                 def pipelineStatus = currentBuild.result ?: 'UNKNOWN'
                 def bannerColor = pipelineStatus.toUpperCase() == 'SUCCESS' ? 'green' : 'red'
-
+ 
                 def body = """
                     <html>
                     <body>
@@ -125,13 +130,13 @@ pipeline {
                     </body>
                     </html>
                 """
-
+ 
                 emailext (
                     subject: "${jobName} - Build ${buildNumber} - ${pipelineStatus.toUpperCase()}",
                     body: body,
-                    to: 'manojdevopstest@gmail.com',
-                    from: 'manojdevopstest@gmail.com',
-                    replyTo: 'manojdevopstest@gmail.com',
+                    to: 'hjnishanth6@gmail.com',
+                    from: 'hjnishanth6@gmail.com',
+                    replyTo: 'nishanthhj7@gmail.com',
                     mimeType: 'text/html',
                     attachmentsPattern: 'trivy-image-report.html'
                 )
@@ -139,3 +144,4 @@ pipeline {
         }
     }
 }
+ 
